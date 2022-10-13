@@ -1,6 +1,11 @@
 library(spatialreg)
+library(geodetector)
 
-factor_spdector < - function(f, data){
+
+y = 'y'
+xlist = c('x1','x2')
+
+factor_spdector < - function(y,xlist, data){
 
 }
 
