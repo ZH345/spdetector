@@ -54,6 +54,8 @@ nb_DiseaseData_sf <- spdep::poly2nb(DiseaseData_sf)
 listW <- spdep::nb2listw(nb_DiseaseData_sf, style = "W", zero.policy = TRUE)
 data = CollectData2
 
+
+
 shapley_value.sar <- function(
     f, ## a named list defining variable groups
     data,       ## data to fit models
@@ -66,11 +68,11 @@ shapley_value.sar <- function(
 
   model.data = model.frame(f,data)
   data.names = names(model.data)
-
+  VarN = ncol(model.data)-1
 
   ff = paste0(data.names[1],'~')
-  for (xi in 1:(length(f)-1)){
-    if (xi < (length(f)-1)){
+  for (xi in 1:(VarN)){
+    if (xi < (VarN)){
       ff = paste0(ff,'factor(',data.names[xi+1],')','*')
     }else{
       ff =paste0(ff,'factor(',data.names[xi+1],')')
@@ -143,28 +145,56 @@ shapley_value.sar <- function(
   ##transform the combinations to the variable names included
   namesindex<-apply(index,1,function(x) unlist(Varfull[which(x==1)]))
 
-  ##the model list
-  modellist<-lapply(namesindex, function(x)
-    paste0("model <- lagsarlm(","y"," ~ ",
-           paste(x, collapse = " + "),",data= sar.data, listw = listW, zero.policy = T)" ##paste variables entered
-    )
-  )
-  modellist[[1]] = paste0("model <- lagsarlm(", "y", " ~ 1, data= sar.data, listw = listW, zero.policy = T)")
-  #modellist[[1]] = "model <- lm(y ~ 1 ,data= data)"
-  ##function to compute R2
-  computeR2<-function(model){
-    modelfit<-eval(parse(text = model))
-    ### Calculated the variance of y explained by variables
-    #fitted_y <- predict(modelfit, re.form = NA)
-    fitted_y <- predict(modelfit, pred.type = 'TC',listw = listW, re.form = NA)
-    #var_y_f <- var(fitted_y)
-    ### Extract variances of random effects
-    #temp.var <- as.data.frame(VarCorr(modelfit))$vcov
-    # Note the data has a four-level structure so there would be 4 variances
-    R2 <- 1 - var(model.data[,1] - fitted_y)/var(model.data[,1])
 
-    return(R2)
+  if (type == 'sar'){
+    ##the model list
+    modellist<-lapply(namesindex, function(x)
+      paste0("model <- lagsarlm(","y"," ~ ",
+             paste(x, collapse = " + "),",data= sar.data, listw = listW, zero.policy = T)" ##paste variables entered
+      )
+    )
+    modellist[[1]] = paste0("model <- lagsarlm(", "y", " ~ 1, data= sar.data, listw = listW, zero.policy = T)")
+    #modellist[[1]] = "model <- lm(y ~ 1 ,data= data)"
+    ##function to compute R2
+    computeR2<-function(model){
+      modelfit<-eval(parse(text = model))
+      ### Calculated the variance of y explained by variables
+      #fitted_y <- predict(modelfit, re.form = NA)
+      fitted_y <- predict(modelfit, pred.type = 'TC',listw = listW, re.form = NA)
+      #var_y_f <- var(fitted_y)
+      ### Extract variances of random effects
+      #temp.var <- as.data.frame(VarCorr(modelfit))$vcov
+      # Note the data has a four-level structure so there would be 4 variances
+      R2 <- 1 - var(model.data[,1] - fitted_y)/var(model.data[,1])
+
+      return(R2)
+    }
+  }else if (type == 'ols'){
+    ##the model list
+    modellist<-lapply(namesindex, function(x)
+      paste0("model <- lm(","y"," ~ ",
+             paste(x, collapse = " + "),",data= sar.data)" ##paste variables entered
+      )
+    )
+
+    modellist[[1]] = paste0("model <- lm(", "y", " ~ 1, data= sar.data)")
+    ##function to compute R2
+    computeR2<-function(model){
+      modelfit<-eval(parse(text = model))
+      ### Calculated the variance of y explained by variables
+      #fitted_y <- predict(modelfit, re.form = NA)
+      fitted_y <- predict(modelfit)
+      #var_y_f <- var(fitted_y)
+      ### Extract variances of random effects
+      #temp.var <- as.data.frame(VarCorr(modelfit))$vcov
+      # Note the data has a four-level structure so there would be 4 variances
+      R2 <- 1 - var(model.data[,1] - fitted_y)/var(model.data[,1])
+
+      return(R2)
+    }
+
   }
+
 
   ##compute 2^p R2
   R2<-sapply(modellist,computeR2)
@@ -196,146 +226,6 @@ shapley_value.sar <- function(
 
 }
 
-
-shapley_value.ols <- function(
-    f, ## a named list defining variable groups
-    data      ## data to fit models
-) {
-
-  #interaction_detector('incidence',c('elevation','soiltype','watershed'),CollectData)
-
-  model.data = model.frame(f,data)
-  data.names = names(model.data)
-
-
-  ff = paste0(data.names[1],'~')
-  for (xi in 1:(length(f)-1)){
-    if (xi < (length(f)-1)){
-      ff = paste0(ff,'factor(',data.names[xi+1],')','*')
-    }else{
-      ff =paste0(ff,'factor(',data.names[xi+1],')')
-    }
-
-  }
-
-  ff = as.formula(ff)
-
-  x.mat = model.matrix(lm(ff,data = model.data))
-
-  ols.data = data.frame(y = model.data[,1],  x.mat[,-1])
-
-
-  #summary(ols.model)
-  #inv.rhoW = invIrM(neighbours = nb_DiseaseData_sf,rho = as.numeric(ols.model$rho))
-  #incidence_hat = predict(ols.model,listw = lisw_DiseaseData_sf, pred.type = 'TC')
-  #R.squared = 1-(var(CollectData2$incidence - incidence_hat))/var(CollectData2$incidence)
-  #R.squared
-
-
-  require(dplyr)
-  require(stringr)
-  require(spatialreg)
-  names.olsdata = names(ols.data)
-
-  names.olsdata = str_replace_all(names.olsdata,'[()]','.')
-  names(ols.data) = names.olsdata
-
-  BitMatrix <- function(n){
-    # 作用：返还Bit矩阵
-    # Args:n：数据长度
-    set <- 0:(2^n-1)
-    rst <- matrix(0,ncol = n,nrow = 2^n)
-    for (i in 1:n){
-      rst[, i] = ifelse((set-rowSums(rst*rep(c(2^((n-1):0)), each=2^n)))/(2^(n-i))>=1, 1, 0)
-    }
-    rst
-  }
-
-  Var.Name <- data.names[-1]
-  selectMatrix <- BitMatrix(length(Var.Name))
-  Varg.name = apply(selectMatrix, 1, function(x){  Var.Name[which(x==1)] })
-  Varg.name = unlist(Varg.name)[-1]
-
-  VarG.list = NULL
-  #Construct VarG based on selectMatrix
-  for (ri in 2:nrow(selectMatrix)){
-    VarG.temp = names.olsdata
-    for (ci in 1:length(selectMatrix[ri,])){
-      var_name =  Var.Name[ci]
-      if (selectMatrix[ri,ci] == 1){
-        VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name)]
-      }else{
-        VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name,negate = T)]
-      }
-    }
-    VarG.list = append(VarG.list,list(VarG.temp))
-  }
-
-
-
-  ## extract variable groups and formula
-  Varfull <- VarG.list
-  J <- length(Varfull)
-
-  ##generate possible combinations as input profiles
-  index<-eval(parse(text = paste0("expand.grid(",paste(rep("c(0,1)",J), collapse=", "),")")))
-
-  ##transform the combinations to the variable names included
-  namesindex<-apply(index,1,function(x) unlist(Varfull[which(x==1)]))
-
-  ##the model list
-  modellist<-lapply(namesindex, function(x)
-    paste0("model <- lm(","y"," ~ ",
-           paste(x, collapse = " + "),",data= ols.data)" ##paste variables entered
-    )
-  )
-
-  modellist[[1]] = paste0("model <- lm(", "y", " ~ 1, data= ols.data)")
-  #modellist[[1]] = "model <- lm(y ~ 1 ,data= data)"
-  ##function to compute R2
-  computeR2<-function(model){
-    modelfit<-eval(parse(text = model))
-    ### Calculated the variance of y explained by variables
-    #fitted_y <- predict(modelfit, re.form = NA)
-    fitted_y <- predict(modelfit, pred.type = 'TC',listw = listW, re.form = NA)
-    #var_y_f <- var(fitted_y)
-    ### Extract variances of random effects
-    #temp.var <- as.data.frame(VarCorr(modelfit))$vcov
-    # Note the data has a four-level structure so there would be 4 variances
-    R2 <- 1 - var(model.data[,1] - fitted_y)/var(model.data[,1])
-
-    return(R2)
-  }
-
-  ##compute 2^p R2
-  R2<-sapply(modellist,computeR2)
-
-  S<-c()
-  for (k in 1:J){ ## equation (4)
-
-    xindex<-index[apply(index,1,function(x) x[k]==0),] ##excluding k
-    xkindex<-xindex
-    xkindex[,k]<-1  ##including k
-
-    gxindex<-as.numeric(rownames(xindex))
-    gxkindex<-(1:2^J)[-gxindex]
-
-    #alternative
-    #gxindex<-which(apply(index,1,function(x) any(apply(xindex,1,function(y) all(x==y)))))
-    #gxkindex<-which(apply(index,1,function(x) any(apply(xkindex,1,function(y) all(x==y)))))
-
-    R2increase<-R2[gxkindex]-R2[gxindex]
-
-    xbar<-apply(xindex,1,sum)
-    commonpart<-factorial(xbar)*factorial(J-xbar-1)/factorial(J)
-
-    S[k]<-sum(R2increase*commonpart)
-    print(k)
-  }
-
-  return(rbind(Varg.name, S))
-
-}
 
 
 
