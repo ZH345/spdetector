@@ -1,0 +1,47 @@
+---
+title: "q"
+author: "zh"
+date: "2022-09-05"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r cars}
+
+```
+$$
+\begin{array}{c}
+y_{11.1} \\
+\vdots \\
+y_{11 . n_{1}} \\
+y_{22.1} \\
+\vdots \\
+y_{22 . n_{2}} \\
+y_{23.1} \\
+\vdots \\
+y_{23 . n_{3}} \\
+y_{32.1} \\
+\vdots \\
+y_{32 . n_{3}} \\
+y_{33.1} \\
+\vdots \\
+y_{33 . n_{4}} \\
+\vdots
+\end{array}
+$$
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

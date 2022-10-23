@@ -1,0 +1,60 @@
+---
+title: "LM and geodetector"
+output:
+  word_document: default
+  html_document: default
+date: "2022-10-08"
+---
+# 回归模型视角下地理探测器方法的解释与拓展
+
+## 3 空间异质性与自相关性并存情形下地理探测器Q值的有效性
+
+  前文已经论述了OLS回归得到的R^2^等价于*q*：*q*=OLS-R^2^。从Q值的计算公式来看，组内方差和总方差计算的隐含假设为y是随机分布，无显著的整体或者层内空间自相关或联系效应。因为*q*统计量和R^2^都是测度贡献度的，我们考虑在y有不同空间自相关情形下，*q*和R^2^的差异关系。<br>
+  
+### 3.1 单因子
+
+  构建一个具有空间滞后形式的空间自回归数据产生过程（spatial lag model）.
+$$
+y=ρWy+γ_1 I+γ_2 x_2+γ_3 x_3+μ; \,μ~(0,σ_μ^2)
+$$
+  可以得到*y*的产生过程：
+$$
+y=(I-ρW)^{-1} (γ_1 I+γ_2 x_2+γ_3 x_3+μ); \, μ~(0,σ_μ^2)
+$$
+  不是一般性的将模拟参数设置为：
+$$
+ρ∈seq(0.05,0.95,by=0.05); \, μ~(0,0.1); \, γ=(1,1.5,1)
+$$
+  计算理论的真实R^2^，真实的*x*对*y*的解释度
+
+$$
+R^{2}=1-\frac{\operatorname{var}\left(y-\rho W Y+\hat{\gamma}_{1} I+\hat{\gamma}_{2} x_{2}+\hat{\gamma}_{3} x_{3}\right)}{\operatorname{var}(y)}
+$$
+  式中：ρ为预设，$\hat{\gamma}_{3}$,$\hat{\gamma}_{3}$和$\hat{\gamma}_{3}$为OLS估计。
+  
+```{r,message=FALSE, warning=FALSE}
+
+
+```
+ 每个 $\rho$模拟100次，取均值，观察*q*相对于真实R^2^的偏差
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

@@ -1,0 +1,265 @@
+---
+title: "geodetector"
+author: ""
+date: "2022/10/8"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, include=FALSE}
+library(geodetector)
+library(tidyverse)
+```
+
+## 地理探测器$q$值与线性回归模型$R^2$的等价性
+
+### 单因子探测
+
+地理探测器主要是分析类型量（分类变量）的影响作用（解释力），假设$Y \sim X$，$Y$可以是连续变量，也可以是离散变量，但是一定得是定量数据；$X$可以是定性数据（分类变量），也可以是离散型的定量数据，若是连续型的定量数据，则需进行适当的离散化。
+
+归根结底，这里是要将$Y$按照$X$进行分组（统计学术语中一般称为“层（strata）”），然后比较各层方差之和与总方差的差异性。
+
+$$
+\begin{aligned}
+&q=1-\frac{\sum_{h=1}^L N_h \sigma_h^2}{N \sigma^2}=1-\frac{S S W}{S S T} \\
+&S S W=\sum_{h=1}^L N_h \sigma_h^2, \quad S S T=N \sigma^2
+\end{aligned}
+$$
+
+然后，我们经过分析，发现这里地理探测器的$q$值本质上就是**同样处理后**的$X$对$Y$进行回归，得到的回归模型的$R^2$。
+
+要证明证明这一点，首先假设$X$是分类变量，那么设$Y \sim X$得到的结果是什么？答：得到的结果是若干条与$x$轴平行的**线段**，每条线段对应$y$轴坐标为对应$X$分类那一组的组均值。
+
+分类变量$X$对$Y$进行回归，要先将$X$转变为**虚拟变量**，这一过程相当于编码。假设$X$有四个分类（$a$、$b$、$c$、$d$），那我们可以进行如下编码：
+
+| 分类 | $x_1$ | $x_2$ | $x_3$ |
+| :----: |:---:|:---:|:---:|
+|  $a$  |  0  |  0  |  0  |
+|  $b$  |  1  |  0  |  0  |
+|  $c$  |  0  |  1  |  0  |
+|  $d$  |  0  |  0  |  1  |
+
+$n$个分类只需引入$n-1$个虚拟变量，此处取$x_1=0$，$x_2=0$，$x_3=0$即为$a$类别，取$x_1=0$，$x_2=0$，$x_3=1$即为$d$类别。
+
+然后我们就可以，构建回归模型：
+
+$$
+\begin{eqnarray}
+Y & = & \alpha+\beta_1 x_1+\beta_2 x_2+\beta_3 x_3+\varepsilon \\
+Y_i & = & \alpha+\beta_1 x_{1i}+\beta_2 x_{2i}+\beta_3 x_{3i}+\varepsilon_i
+\end{eqnarray}
+$$
+
+这里有两条路可以走：
+
+一种方法是待定系数法，假设$Y_i=\alpha+\beta_1 x_{1i}+\beta_2 x_{2i}+\beta_3 x_{3i}+\varepsilon_i$里面的$\alpha$、$\beta_1$、$\beta_2$、$\beta_3$都已经求出来了，就是$a_0$、$b_1$、$b_2$、$b_3$，然后可知：
+
+对于$a$类别，$x_1=0$，$x_2=0$，$x_3=0$，
+
+$$
+\hat{Y}_i=a_0
+$$
+
+两边求期望，显然有
+$$
+E(Y_i|x_1=0,x_2=0,x_3=0)=a_0
+$$
+
+$a_0$的意义就是$a$类别的组均值。
+
+同理，对于$b$类别，$x_1=1$，$x_2=0$，$x_3=0$，
+
+$$
+\begin{aligned}
+\hat{Y}_{i} &=a_{0}+b_{1} \\
+E\left(Y_{i} \mid x_{1}=1, x_{2}\right.&\left.=0, x_{3}=0\right)=a_{0}+b_{1}
+\end{aligned}
+$$
+
+对于$c$类别，$x_1=0$，$x_2=1$，$x_3=0$，
+
+$$
+\begin{aligned}
+\hat{Y}_{i} &=a_{0}+b_{2} \\
+E\left(Y_{i} \mid x_{1}=0, x_{2}\right.&\left.=1, x_{3}=0\right)=a_{0}+b_{2}
+\end{aligned}
+$$
+
+对于$d$类别，$x_1=0$，$x_2=0$，$x_3=1$，
+
+$$
+\begin{aligned}
+\hat{Y}_{i} &=a_{0}+b_{2} \\
+E\left(Y_{i} \mid x_{1}=0, x_{2}\right.&\left.=0, x_{3}=1\right)=a_{0}+b_{2}
+\end{aligned}
+$$
+
+另一种方法是通过整理样本构建$\boldsymbol{X}$，最上面先排$n_1$个$a$类别，即$n_1$行$(0, 0, 0)$，然后依次是$n_2$个$b$类别……
+
+$$
+\boldsymbol{X}=\begin{bmatrix}
+\left.\begin{matrix}
+1,0,0,0\\ 
+\cdots 
+\end{matrix}\right\} & n_1\\ 
+\left.\begin{matrix}
+1,1,0,0\\ 
+\cdots 
+\end{matrix}\right\} & n_2\\ 
+\left.\begin{matrix}
+1,0,1,0\\ 
+\cdots 
+\end{matrix}\right\} & n_3\\ 
+\left.\begin{matrix}
+1,0,0,1\\ 
+\cdots 
+\end{matrix}\right\} & n_4
+\end{bmatrix}=\begin{bmatrix}
+\boldsymbol{1}_{n_1} & \boldsymbol{0}_{n_1} & \boldsymbol{0}_{n_1} & \boldsymbol{0}_{n_1}\\ 
+\boldsymbol{1}_{n_2} & \boldsymbol{1}_{n_2} & \boldsymbol{0}_{n_2} & \boldsymbol{0}_{n_2}\\ 
+\boldsymbol{1}_{n_3} & \boldsymbol{0}_{n_3} & \boldsymbol{1}_{n_3} & \boldsymbol{0}_{n_3}\\ 
+\boldsymbol{1}_{n_4} & \boldsymbol{0}_{n_4} & \boldsymbol{0}_{n_4} & \boldsymbol{1}_{n_4}
+\end{bmatrix}
+$$
+
+然后最小二乘法求解，得到的最终公式是：
+
+$$
+\boldsymbol{\hat{\beta}}=(\boldsymbol{X^{'}X})^{-1}\boldsymbol{X^{'}Y}
+$$
+
+由此，
+
+$$
+\boldsymbol{\hat{\beta}}=(\boldsymbol{X^{'}X})^{-1}\boldsymbol{X^{'}Y}
+=\begin{bmatrix}
+\frac{1}{n_1}\cdot\sum_{i}^{n_1}y_{n_1i}\\ 
+-\frac{1}{n_1}\cdot\sum_{i}^{n_1}y_{n_1i}+\frac{1}{n_2}\cdot\sum_{i}^{n_2}y_{n_2i}\\ 
+-\frac{1}{n_1}\cdot\sum_{i}^{n_1}y_{n_1i}+\frac{1}{n_3}\cdot\sum_{i}^{n_3}y_{n_3i}\\ 
+-\frac{1}{n_1}\cdot\sum_{i}^{n_1}y_{n_1i}+\frac{1}{n_4}\cdot\sum_{i}^{n_4}y_{n_4i}
+\end{bmatrix} 
+$$
+
+于是，
+
+$$
+\begin{array}{c}
+\hat{Y}_{i}=\left(1, x_{1 i}, x_{2 i}, x_{3 i}\right) \cdot \hat{\boldsymbol{\beta}}=\frac{1}{n_{1}} \cdot \sum_{i}^{n_{1}} y_{n i i}+\left(-\frac{1}{n_{1}} \cdot \sum_{i}^{n_{1}} y_{n 1^{i}}+\frac{1}{n_{2}} \cdot \sum_{i}^{n_{2}} y_{n 2^{i}}\right) x_{1 i} \\
++\left(-\frac{1}{n_{1}} \cdot \sum_{i}^{n_{1}} y_{n 1^{i}}+\frac{1}{n_{3}} \cdot \sum_{i}^{n_{3}} y_{n 3^{i}}\right) x_{2 i}+\left(-\frac{1}{n_{1}} \cdot \sum_{i}^{n_{1}} y_{n i i}+\frac{1}{n_{4}} \cdot \sum_{i}^{n_{4}} y_{n 4^{i}}\right) x_{3 i}
+\end{array}
+$$
+
+将不同组别的虚拟变量值代入后，显然也是，**对于只包含一个分类变量$X$的回归方程，$Y \sim X$，函数拟合值就是不同组别的组均值**。这里是4个类别，$n$个类别同理。
+
+明确这点后，我们自然可以计算$R^2$，与$q$值计算保持一致，假设我们自变量有$L$个类别，或者说$L$层。
+
+$$
+R^2=1-\frac{\sum(y_i-\hat{y}_i)^2}{\sum(y_i-\bar{y})^2}
+$$
+
+$\sum(y_i-\hat{y}_i)^2$代表**未被模型解释变化**，$\sum(y_i-\bar{y})^2$代表**数据差异变化**。我们以$\bar{y}_h$表示第$h$个类别的组均值。
+
+$$
+\begin{array}{c}
+R^{2}=1-\frac{\sum\left(y_{i}-\hat{y}_{i}\right)^{2}}{\sum\left(y_{i}-\bar{y}\right)^{2}}=1-\frac{\sum_{h=1}^{L} \sum\left(y_{i}-\bar{y}_{h}\right)^{2}}{\sum\left(y_{i}-\bar{y}\right)^{2}} \\
+=1-\frac{\sum_{h=1}^{L} N_{h} \cdot \frac{1}{N_{h}} \sum\left(y_{i}-\bar{y}_{h}\right)^{2}}{N \cdot \frac{1}{N} \sum\left(y_{i}-\bar{y}\right)^{2}}=1-\frac{\sum_{h=1}^{L} N_{h} \sigma_{h}^{2}}{N \sigma^{2}}=q
+\end{array}
+$$
+
+可以进行一下实证模拟：
+
+使用地理探测器，
+
+```{r}
+factor_detector("incidence", "elevation", CollectData)
+```
+
+使用lm函数，将$elevation$转变为因子变量，对$incidence$进行回归，
+
+```{r}
+fit_1 <- lm(incidence ~ factor(elevation), data = CollectData)
+summary(fit_1)
+```
+
+### 交互因子探测
+
+地理探测器交互因子探测是识别不同风险因子之间的交互作用，即评估因子$X$和$Z$共同作用时是否会增加或减弱对因变量$Y$的解释力，或这些因子对$Y$的影响是相互独立的。在算法上的实际操作是，将数据按两个分类变量$X$和$Z$进行交叉分组，若$X$有三个分类，$Z$有两个分类，交叉之下，就有了六个分类。然后，对这种新的分类方式进行如上所述的单因子探测，比较这种新分类是否比两个原始分类有更强的解释性。
+
+而这种交叉分类的处理方式，也是lm函数对于两个分类变量交互的处理方式，因此，这种情况下，地理探测器$q$值与线性回归模型$R^2$依然是等价的。以实证数据验证一下：
+
+使用地理探测器，
+
+```{r}
+interaction_detector("incidence", c("soiltype", "elevation"), CollectData)
+```
+
+使用lm函数，将$elevation$和$soiltype$转变为因子变量，对$incidence$进行回归，
+
+```{r}
+fit_2 <- lm(incidence ~ factor(soiltype) * factor(elevation), data = CollectData)
+summary(fit_2)
+```
+
+## 空间异质性与自相关性并存情形下地理探测器$q$值的有效性
+
+  前文已经论述了OLS回归得到的R^2^等价于$q$：$q$=OLS-R^2^。从$q$值的计算公式来看，组内方差和总方差计算的隐含假设为y是随机分布，无显著的整体或者层内空间自相关或联系效应。因为$q$统计量和R^2^都是测度贡献度的，我们考虑在y有不同空间自相关情形下，$q$和R^2^的差异关系。<br>
+  以spdata包内置的北卡罗来纳州（North Carolina）的拓扑结构构建邻接矩阵
+  
+```{r,message=FALSE, warning=FALSE}
+library(geodetector)
+library(spdep)
+library(spatialreg)
+nc <- st_read(system.file("shapes/sids.shp", package="spData")[1], quiet=TRUE)
+st_crs(nc) <- "+proj=longlat +datum=NAD27"
+row.names(nc) <- as.character(nc$FIPSNO)
+# neighbourhood structure and weights matrix
+nb_nc <- spdep::poly2nb(nc)
+lisw_nc <- spdep::nb2listw(nb_nc, style = "W", zero.policy = TRUE)
+plot(st_geometry(nc),border = 'grey')
+plot( st_centroid(nc$geometry), add=TRUE )
+plot(lisw_nc, st_centroid(nc$geometry), add= TRUE )
+
+```
+  
+### 3.1 单因子
+
+  构建一个具有空间滞后形式的空间自回归数据产生过程（spatial lag model），$x$为三类别的分类变量.
+  
+$$
+y_i=ρW_{i}y_i+γ_1+γ_2 x_{2i}+γ_3 x_{3i}+μ_i; \,μ_i \sim (0,σ_μ^2)
+$$
+
+  可以得到$y$的产生过程：
+$$
+y_i=(I-ρW_i)^{-1} (γ_1 I+γ_2 x_{2i}+γ_3 x_{3i}+μ_i); \, μ_{i}\sim(0,σ_μ^2)
+$$
+
+  不失一般性地将模拟参数设置为：
+$$
+ρ∈\operatorname{seq}(0.05,0.95,\operatorname{by}=0.05); \, μ_{i}\sim(0,0.1); \, \mathbf{γ}=(1,1.5,1)
+$$
+
+  在模拟实验中，由于$y$具有空间效应，并且真实的空间效应为$ρWy$,那么理论上$x$需要解释的部分为$\tilde{y}=y-ρWy$，真实$R^2$则为
+
+$$
+R^{2}=1-\frac{\sum\left(\tilde{y_i}-\hat{\gamma}_{1} I+\hat{\gamma}_{2} x_{2i}+\hat{\gamma}_{3} x_{3i}\right)}{\sum (\tilde{y_i}-\bar{y_i})}
+$$
+
+  其中：$ρ$为预设，$\hat{\gamma}_{1}$,$\hat{\gamma}_{2}$和$\hat{\gamma}_{3}$为OLS估计。
+  
+```{r,message=FALSE, warning=FALSE}
+
+
+```
+ 每个$\rho$模拟100次，取均值，观察*q*相对于真实R^2^的偏差
+
+
+
+
+
+
