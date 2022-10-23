@@ -56,28 +56,45 @@ data = CollectData2
 
 
 
-shapley_value.sar <- function(
-    f, ## a named list defining variable groups
+listW = listW
+y = 'incidence'
+x = c('elevation','soiltype')
+inter.term = F
+
+shapley_value <- function(
+    y, ## y
+    x, ## x name list
     data,       ## data to fit models
-    listW
+    type = 'sar',
+    listW = NULL,
+    inter.term = T
 ) {
 
 
-
+  require(gtools)
   #interaction_detector('incidence',c('elevation','soiltype','watershed'),CollectData)
+  model.data = data[,c(y,x)]
 
-  model.data = model.frame(f,data)
   data.names = names(model.data)
   VarN = ncol(model.data)-1
-
-  ff = paste0(data.names[1],'~')
-  for (xi in 1:(VarN)){
-    if (xi < (VarN)){
-      ff = paste0(ff,'factor(',data.names[xi+1],')','*')
-    }else{
-      ff =paste0(ff,'factor(',data.names[xi+1],')')
+  if (inter.term == T){
+    ff = paste0(data.names[1],'~')
+    for (xi in 1:(VarN)){
+      if (xi < (VarN)){
+        ff = paste0(ff,'factor(',data.names[xi+1],')','*')
+      }else{
+        ff =paste0(ff,'factor(',data.names[xi+1],')')
+      }
     }
-
+  }else{
+    ff = paste0(data.names[1],'~')
+    for (xi in 1:(VarN)){
+      if (xi < (VarN)){
+        ff = paste0(ff,'factor(',data.names[xi+1],')','+')
+      }else{
+        ff =paste0(ff,'factor(',data.names[xi+1],')')
+      }
+    }
   }
 
   ff = as.formula(ff)
@@ -93,44 +110,81 @@ shapley_value.sar <- function(
   #R.squared = 1-(var(CollectData2$incidence - incidence_hat))/var(CollectData2$incidence)
   #R.squared
 
+  if (inter.term == T){
 
-  require(dplyr)
-  require(stringr)
-  require(spatialreg)
-  names.sardata = names(sar.data)
+    require(dplyr)
+    require(stringr)
+    require(spatialreg)
+    names.sardata = names(sar.data)
 
-  names.sardata = str_replace_all(names.sardata,'[()]','.')
-  names(sar.data) = names.sardata
+    names.sardata = str_replace_all(names.sardata,'[()]','.')
+    names(sar.data) = names.sardata
 
-  BitMatrix <- function(n){
-    # 作用：返还Bit矩阵
-    # Args:n：数据长度
-    set <- 0:(2^n-1)
-    rst <- matrix(0,ncol = n,nrow = 2^n)
-    for (i in 1:n){
-      rst[, i] = ifelse((set-rowSums(rst*rep(c(2^((n-1):0)), each=2^n)))/(2^(n-i))>=1, 1, 0)
-    }
-    rst
-  }
-
-  Var.Name <- data.names[-1]
-  selectMatrix <- BitMatrix(length(Var.Name))
-  Varg.name = apply(selectMatrix, 1, function(x){  Var.Name[which(x==1)] })
-  Varg.name = unlist(Varg.name)[-1]
-
-  VarG.list = NULL
-  #Construct VarG based on selectMatrix
-  for (ri in 2:nrow(selectMatrix)){
-    VarG.temp = names.sardata
-    for (ci in 1:length(selectMatrix[ri,])){
-      var_name =  Var.Name[ci]
-      if (selectMatrix[ri,ci] == 1){
-        VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name)]
-      }else{
-        VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name,negate = T)]
+    BitMatrix <- function(n){
+      # 作用：返还Bit矩阵
+      # Args:n：数据长度
+      set <- 0:(2^n-1)
+      rst <- matrix(0,ncol = n,nrow = 2^n)
+      for (i in 1:n){
+        rst[, i] = ifelse((set-rowSums(rst*rep(c(2^((n-1):0)), each=2^n)))/(2^(n-i))>=1, 1, 0)
       }
+      rst
     }
-    VarG.list = append(VarG.list,list(VarG.temp))
+
+    Var.Name <- data.names[-1]
+    selectMatrix <- BitMatrix(length(Var.Name))
+    Varg.name = apply(selectMatrix, 1, function(x){  Var.Name[which(x==1)] })
+    Varg.name = unlist(Varg.name)[-1]
+
+    VarG.list = NULL
+    #Construct VarG based on selectMatrix
+    for (ri in 2:nrow(selectMatrix)){
+      VarG.temp = names.sardata
+      for (ci in 1:length(selectMatrix[ri,])){
+        var_name =  Var.Name[ci]
+        if (selectMatrix[ri,ci] == 1){
+          VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name)]
+        }else{
+          VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name,negate = T)]
+        }
+      }
+      VarG.list = append(VarG.list,list(VarG.temp))
+    }
+  }else{
+    require(dplyr)
+    require(stringr)
+    require(spatialreg)
+    names.sardata = names(sar.data)
+
+    names.sardata = str_replace_all(names.sardata,'[()]','.')
+    names(sar.data) = names.sardata
+    BitMatrix <- function(n){
+      # 作用：返还Bit矩阵
+      # Args:n：数据长度
+      diag(1,n)
+    }
+
+    Var.Name <- data.names[-1]
+    selectMatrix <- BitMatrix(length(Var.Name))
+    Varg.name = apply(selectMatrix, 1, function(x){  Var.Name[which(x==1)] })
+    Varg.name = unlist(Varg.name)
+
+
+    VarG.list = NULL
+    #Construct VarG based on selectMatrix
+    for (ri in 1:length(x)){
+      VarG.temp = names.sardata
+      for (ci in 1:length(selectMatrix[ri,])){
+        var_name =  Var.Name[ci]
+        if (selectMatrix[ri,ci] == 1){
+          VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name)]
+        }else{
+          VarG.temp = VarG.temp[str_detect(string = VarG.temp ,pattern = var_name,negate = T)]
+        }
+      }
+      VarG.list = append(VarG.list,list(VarG.temp))
+    }
+
   }
 
 
@@ -221,19 +275,16 @@ shapley_value.sar <- function(
     S[k]<-sum(R2increase*commonpart)
     print(k)
   }
-
-  return(rbind(Varg.name, S))
+  S.percentage = S/sum(S)*100
+  return(t(rbind(Varg.name, S,S.percentage)))
 
 }
 
 
+pwy = rnorm(1000,0,sqrt(3))
+e = rnorm(1000,0,sqrt(5))
 
+cor.c = as.numeric(cor.test(pwy,e)$estimate)
 
-
-
-
-
-
-
-
-
+var(pwy+e) - (var(e)+var(pwy)+2*cor.c*sqrt(var(e))*sqrt(var(pwy)))
+var(pwy*e)
