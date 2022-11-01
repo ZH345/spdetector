@@ -152,8 +152,8 @@ for (i in 1:length(rho)) {
     Q.temp <- as.numeric(Q.res[[1]][1])
     Q.p = as.numeric(Q.res[[1]][2])
     # save the difference
-    adjust.q[j,i] = adjust.true
-    R2.sar[j,i] = as.numeric(R.sar)
+    #adjust.q[j,i] = adjust.true
+    #R2.sar[j,i] = as.numeric(R.sar)
     MI.mat[j,i] = mi.num
     Q.pvalue[j,i] = Q.p
     diff <- (Q.temp - R2.true) / R2.true * 100

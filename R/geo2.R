@@ -74,14 +74,135 @@ plot(st_geometry(nc))
 # neighbourhood structure and weights matrix
 nb_nc <- spdep::poly2nb(nc)
 lisw_nc <- spdep::nb2listw(nb_nc, style = "W", zero.policy = TRUE)
+nc.mat = listw2mat(lisw_nc)
+# plot the adjacency matrix
+n <- nrow(nc)
+
+if(F){
+  plot(st_geometry(nc),border = 'grey')
+  plot( st_centroid(nc$geometry), add=TRUE )
+  plot(lisw_nc, st_centroid(nc$geometry), add= TRUE )
+
+  #设定关联矩阵
+  NetW = data.frame(nc.mat)
+  #加载城市点数据
+  library(sp)
+  city = sf::as_Spatial(nc)
+  cityPoint = st_centroid(nc$geometry) %>% sf::as_Spatial()
+  cityPoint = sp::SpatialPointsDataFrame(coords = cityPoint@coords,
+                             data = data.frame(id = 1:n),
+                             proj4string = cityPoint@proj4string)
+  cityPoint@data$lon = cityPoint@coords[,1]
+  cityPoint@data$lat = cityPoint@coords[,2]
+  cityPoint@data$CityName = city@data$NAME
+  library(tidyr)
+
+  NetW[NetW == 0] = NA
+  Netdf = data.frame(NetW)
+  dat_EA  = cbind(cityPoint@data,Netdf)
+  dat_EA <- as_tibble(dat_EA)
+  #构造网络链接列表
+  library(dplyr)
+  net_EA <- dat_EA %>%
+    select("id",starts_with("X")) %>%
+    gather(key = "varname", value = "content", -id) %>%
+    filter(!is.na(content)) %>%
+    mutate(
+      friendid = as.numeric(substring(varname,2, last = 1000000L))
+    )
+  #生成带有起终点的坐标对
+  edges_for_plot <- net_EA%>%
+    inner_join(cityPoint@data%>%select(id, lon, lat),by=c("id"="id"))%>%
+    rename(x=lon, y=lat)%>%
+    inner_join(cityPoint@data%>%select(id,lon,lat),by=c("friendid"="id"))%>%
+    rename(xend=lon,yend=lat)
+  edges_for_plot$weight = edges_for_plot$content
+  #将坐标对分为两组，从而以让ggplot2出图时将权重大的网络链接置于权重小的链接之上
+  edges_for_plot1 = edges_for_plot[edges_for_plot$weight<=0.05,]
+  edges_for_plot2 = edges_for_plot[edges_for_plot$weight>0.05,]
+  #ggplot2
+  library(ggplot2)
+  library(ggspatial)
+  maptheme <- theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    axis.title = element_blank(),
+    legend.position = c(0.95,0.25),
+    panel.background = element_blank(),
+    #unit(c(top, right, bottom, left), units)
+    plot.margin = unit(c(0.05,0.05,0.05,0.05),"cm"),
+    panel.border = element_rect(fill=NA,color="black", size=0, linetype="solid"),
+    panel.spacing = unit(c(0.1,0.1,0.1,0.1),"cm"),
+    legend.title = element_text(size = 10,colour = 'white'),
+    legend.text = element_text(size = 10)
+    #text = element_text(size=16,  family="serif")
+  )
+
+  #设置底图范围
+  #mapcoords <- coord_fixed(ylim=c(26.884,35.051), xlim=c(116.397,123.146))
+  #ggplot2出图
+  g1 = ggplot(cityPoint@data)+
+    geom_polygon(aes(x=long, y=lat, group=group),
+                 data=city,
+                 fill="#CECECE", color="#515151",size=0.1,show.legend = F)+
+    geom_point(aes(x=lon,y=lat),  #draw nodes
+               shape=21,size = 1,fill="white",color="white",stroke=0.5)+
+    geom_curve(aes(x=x,y=y,xend=xend,yend=yend,color = weight),
+               data=edges_for_plot,curvature = 0.2,alpha=0.5,size = 0.5,arrow =  arrow(type = "closed",length = unit(0.01, "npc")))+
+    #geom_curve(aes(x=x,y=y,xend=xend,yend=yend,color = weight,size = weight),
+     #          data=edges_for_plot2,curvature = 0.15,alpha=0.5,arrow =  arrow(type = "closed",length = unit(0.01, "npc")))+
+    scale_color_gradient2(low = "blue",mid = 'yellow',high = 'red')+
+    #scale_size_continuous(guide = "none",range = c(0,2))+  # scale for edge widths
+    #scale_size_continuous(guide = FALSE, range = c(1,6))+ # scale for node size
+    geom_text(aes(x=lon,y=lat,label=CityName), # draw text labels
+              hjust=0,nudge_x = 0,nudge_y = 0,
+              size=1,color="black",fontface="bold")+
+    #mapcoords+
+    annotation_north_arrow(
+      mapping = NULL,
+      data = NULL,
+      height = unit(1.5, "cm"),
+      width = unit(1.5, "cm"),
+      pad_x = unit(18, "cm"),
+      pad_y = unit(22, "cm"),
+      rotation = NULL,
+      style = north_arrow_orienteering
+    )+
+    guides(color = guide_legend(override.aes = list(size = 4)))+
+
+    #geom_spatial_point(aes(x, y),data = boxedge ,size=0)+
+    annotation_scale(width_hint = 0.3,
+                     plot_unit = 'km',
+                     style = "ticks",
+                     line_width = unit(3, "cm"),
+                     height = unit(0.4, "cm"),
+                     pad_x = unit(0.1, "cm"),
+                     pad_y = unit(0.3, "cm")) +
+    coord_sf(crs = 4326)+
+    theme_bw()+
+    theme(legend.position = c(0.95,0.25))+
+    theme(legend.background = element_blank())+
+    theme(panel.grid = element_blank(),
+          #axis.ticks = element_blank(),
+          axis.title = element_blank(),
+          legend.title = element_text(size = 10,colour = 'white'),
+          legend.text = element_text(size = 10))
+    #maptheme
+  g1
+  ggsave('D:/BaiduSyncdisk/0 job/0 q-vpc/image/NC_adjacency.pdf',device = 'pdf',plot = g1,width = 8,height = 3,dpi = 1200)
+
+}
+
+
 
 
 ### a simulation experiment
-n <- nrow(nc)
+
 b <- c(1,1.5, 1) # note that this yields an medium degree of explanation power
 sigma <- 0.1 # again, this relates to the calculation of R2
 rho <- seq(0.05, 0.95, by = 0.05)
-Nsim <- 100
+Nsim <- 1000
 
 # save results
 diff.res <- matrix(nrow = Nsim, ncol = length(rho))
@@ -110,6 +231,21 @@ for (i in 1:length(rho)) {
     # model estimation
     #sar <- spautolm(y ~ x_mat.temp[,-1],data = d.temp, listw = lisw_nc, family = "SAR")
     #sar <- lagsarlm(y ~ x_mat.temp[,-1],data = d.temp, listw = lisw_nc)
+    if(F){#test for large data model
+      sar <- lagsarlm(y ~ x_mat.temp[,-1],data = d.temp, listw = lisw_nc)
+
+      summary(sar)
+      d.temp$y_sp = lag.listw(lisw_nc,d.temp$y)
+      lm.fitsar = lm(y~y_sp+x_mat.temp[,-1],data = d.temp)
+      summary(lm.fitsar)
+
+      ###test
+      #d.temp$y.tilde.t = d.temp$y - sar$rho * lag.listw(lisw_nc,d.temp$y)
+      #m.temp.t <- lm(y.tilde.t ~ x_mat.temp[,-1], data = d.temp)
+      #R2.true.t <- summary(m.temp.t)$r.squared
+      #This is equivalent
+
+    }
     #fit.y <- predict(sar, newdata = NULL, listw = lisw_nc, pred.type = "TS")
     #R.sar = 1-(var(d.temp$y - fit.y))/var(d.temp$y)
     #adjust.true = var(sar$rho * lag.listw(lisw_nc,d.temp$y))/var(d.temp$y)
@@ -126,7 +262,7 @@ for (i in 1:length(rho)) {
     ### The second thought: true R2 should be based on two parameters of rho and betas
     d.temp$y_tilde <- d.temp$y - rho.temp * lag.listw(lisw_nc,d.temp$y)
 
-    adjust.true = var(rho.temp * lag.listw(lisw_nc,d.temp$y))/var(d.temp$y)
+    #adjust.true = var(rho.temp * lag.listw(lisw_nc,d.temp$y))/var(d.temp$y)
 
     # run an OLS model
     m.temp <- lm(y_tilde ~ x_mat.temp[,-1], data = d.temp)
@@ -150,8 +286,8 @@ for (i in 1:length(rho)) {
     Q.temp <- as.numeric(Q.res[[1]][1])
     Q.p = as.numeric(Q.res[[1]][2])
     # save the difference
-    adjust.q[j,i] = adjust.true
-    R2.sar[j,i] = as.numeric(R.sar)
+    #adjust.q[j,i] = adjust.true
+    #R2.sar[j,i] = as.numeric(R.sar)
     MI.mat[j,i] = mi.num
     Q.pvalue[j,i] = Q.p
     diff <- (Q.temp - R2.true) / R2.true * 100
@@ -205,7 +341,44 @@ cor(xx,plot.data$diff50)^2
 
 plot.data$diff50.fit <- xx
 
+if (F){
 
+
+  diff.res_act = Q.mat - true.R2
+  summary.diff <- apply(diff.res_act,2,quantile,probs=c(0.5,0.025,0.975),na.rm = T)
+  summary.r2 <- apply(true.R2,2,quantile,probs=c(0.5,0.025,0.975),na.rm = T)
+  #summary.diff <- apply(diff.res,2,quantile,probs=seq(0,1,0.05),na.rm = T)
+
+  plot(rho, summary.diff[1,])
+
+  library(ggplot2)
+
+  plot.data <- data.frame(rho = rho,diff50 = colMeans(diff.res_act),
+                          diff25 = summary.diff[2,],
+                          diff975 = summary.diff[3,])
+
+  ## Fit a nonlinear least square model
+  plot.data$rho.sq = plot.data$rho^2
+  plot.data$diff50.1 = plot.data$diff50+1
+  diff.lm = lm(plot.data$diff50.1 ~ plot.data$rho.sq)
+  summary(diff.lm)
+  plot(plot.data$rho.sq, plot.data$diff50.1)
+
+  cor(predict(diff.lm), plot.data$diff50.1)
+
+  diff.lm$coefficients * plot.data$rho.sq - 1
+
+
+  diff.model <- nls(diff50 ~ (a + b * rho^2), data = plot.data,
+                    start=list(b = -0.5, a = 1),trace = T)
+
+  summary(diff.model)
+  xx <- predict(diff.model)
+  cor(xx,plot.data$diff50)
+  cor(xx,plot.data$diff50)^2
+
+  plot.data$diff50.fit <- xx
+}
 ## mapping
 g1 = ggplot(data = plot.data, aes(x = rho)) +
   geom_linerange(aes(ymin=diff25, ymax=diff975),show.legend = T)+
